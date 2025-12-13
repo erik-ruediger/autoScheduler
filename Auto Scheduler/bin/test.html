@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Select and Deselect Names</title>
+  <style>
+    label {
+      display: block;
+      transition: opacity 0.3s ease;
+    }
+
+    input[type="checkbox"]:not(:checked) + span {
+      opacity: 0.5;
+    }
+
+    #selected-names {
+      margin-top: 20px;
+    }
+
+    .name-with-age {
+      display: inline-block;
+      margin-right: 10px;
+    }
+  </style>
+  <script>
+    function updateSelectedNames() {
+      var selectedNames = document.querySelectorAll('input[name="name"]:checked');
+      var selectedNamesList = document.getElementById('selected-names');
+      selectedNamesList.innerHTML = "";
+      
+      for (var i = 0; i < selectedNames.length; i++) {
+        var name = selectedNames[i].value;
+        var age = selectedNames[i].getAttribute('data-age');
+        var listItem = document.createElement('li');
+        var nameWithAge = document.createElement('span');
+        nameWithAge.classList.add('name-with-age');
+        nameWithAge.textContent = name + ' (' + age + ')';
+        listItem.appendChild(nameWithAge);
+        selectedNamesList.appendChild(listItem);
+      }
+    }
+
+    function addName() {
+      var nameInput = document.getElementById('new-name');
+      var ageInput = document.getElementById('new-age');
+      var name = nameInput.value.trim();
+      var age = ageInput.value.trim();
+      
+      if (name !== '' && age !== '') {
+        var form = document.getElementById('name-form');
+        var label = document.createElement('label');
+        var checkbox = document.createElement('input');
+        var span = document.createElement('span');
+        
+        checkbox.type = 'checkbox';
+        checkbox.name = 'name';
+        checkbox.value = name;
+        checkbox.setAttribute('data-age', age);
+        checkbox.addEventListener('change', updateSelectedNames);
+        span.textContent = name + ' (' + age + ')';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        form.appendChild(label);
+        
+        nameInput.value = '';
+        ageInput.value = '';
+      }
+    }
+
+    function removeName() {
+      var form = document.getElementById('name-form');
+      var selectedNames = document.querySelectorAll('input[name="name"]:checked');
+      
+      for (var i = 0; i < selectedNames.length; i++) {
+        var checkbox = selectedNames[i];
+        var label = checkbox.parentNode;
+        form.removeChild(label);
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Select and Deselect Names</h1>
+  
+  <form id="name-form">
+    <label>
+      <input type="checkbox" name="name" value="John" data-age="25" onchange="updateSelectedNames()">
+      <span>John (25)</span>
+    </label>
+    <label>
+      <input type="checkbox" name="name" value="Jane" data-age="30" onchange="updateSelectedNames()">
+      <span>Jane (30)</span>
+    </label>
+    <label>
+      <input type="checkbox" name="name" value="Alice" data-age="28" onchange="updateSelectedNames()">
+      <span>Alice (28)</span>
+    </label>
+  </form>
+
+  <h2>Selected Names:</h2>
+  <ul id="selected-names"></ul>
+
+  <h2>Add or Remove Name:</h2>
+  <label>
+    Name:
+    <input type="text" id="new-name" placeholder="Enter a name">
+  </label>
+  <label>
+    Age:
+    <input type="text" id="new-age" placeholder="Enter an age">
+  </label>
+  <button onclick="addName()">Add Name</button>
+  <button onclick="removeName()">Remove Selected Names</button>
+</body>
+</html>
