@@ -1,6 +1,7 @@
 {/* To Do 
 
- - somehow change assignTeams function to deal with night team
+
+ - allow changing availability without nuclear bomb response
 
 */}
 
@@ -15,22 +16,17 @@
     var eduTeam = [];
     var nightTeam = [];
 
-    var teams = [];
-    var teamNames = [];
+    var teams = [redTeam, blueTeam, eduTeam, nightTeam];
+    var teamNames = ["---", "red", "blue", "edu", "night"];
 
-    var positions = [];
+    var positions = ['redChief', 'blueChief', 'consults', 'redStaff', 'blueStaff', 'nightSr', 'nightJr'];
     var shiftTypes = ['shifts', 'consults', 'weekends', 'nights', 'tuesdays'];
     var stats = [];
 
     var halfway = false;
     var redFirst = true;
 
-    if (redFirst) {
-        positions = ['redChief', 'blueChief', 'consults', 'redStaff', 'blueStaff', 'nightSr', 'nightJr'];
-        teamNames = ["---", "red", "blue", "edu", "night"];
-        teams = [redTeam, blueTeam, eduTeam, nightTeam];
-    }
-    else {
+    if (!redFirst) {
         positions = ['blueChief', 'blueStaff', 'redChief', 'redStaff', 'consults', 'nightSr', 'nightJr'];
         teamNames = ["---", "blue", "red", "edu", "night"];
         teams = [blueTeam, redTeam, eduTeam, nightTeam];
@@ -143,7 +139,7 @@ class Resident {
 
         //only PGY 1 & 2
         //if (this.PGY < 3) return true;
-        
+
         else return false;
     }
 
@@ -156,8 +152,8 @@ class Resident {
         //2. check if working during the day
         if (this.isWorkingDay(day)) return false;
 
-        //3. check if working yesterday night (only on Sat/Sun to prevent bug on day 0)
-        if (day.isSatSun()) {
+        //3. check if working yesterday night (first check that it's NOT day 0)
+        if (day.dayIndex() != 0) {
             if (this.isWorkingNight(day.yesterday())) return false;
         }
 
@@ -172,14 +168,14 @@ class Resident {
         //2. check if already working tonight
         if (this.isWorkingNight(day)) return false;
 
-        //3. check if working yesterday night (only on Sat/Sun to prevent bug on day 0)
-        if (day.isSatSun()) {
-            if (this.isWorkingNight(day.yesterday())) return false;
+        //3. check if working yesterday 24hr shift (first check that it's NOT day 0)
+        if (day.dayIndex() != 0) {
+            if (this.isWorkingDay(day.yesterday()) && this.isWorkingNight(day.yesterday())) return false;
         }
 
-        //4. check if working tomorrow at all (only Fri/Sat to prevent bug on day 28)
-        if (day.isFriSat()) {
-            if (this.isWorking(day.tomorrow())) return false;
+        //4. check if working tomorrow day (first check that it's NOT the last day, index #27)
+        if (day.dayIndex() != 27) {
+            if (this.isWorkingDay(day.tomorrow())) return false;
         }
 
         //is available if none of the conditions above
@@ -263,6 +259,9 @@ class Day {
     }
     dayNum() {
         return this.num % 7;
+    }
+    dayIndex() {
+        return this.num;
     }
     yesterday() {
         if (this.num == 0) return null;
@@ -403,7 +402,7 @@ function listResident(resident) {
         checkboxes[i].setAttribute('week', i);
 
         //update resident availability and dropdown options if appropriate - links to clear team, schedule, stats
-        checkboxes[i].addEventListener('change', updateAvailability);
+        checkboxes[i].addEventListener('change', (event) => { updateAvailability(resident, i); });
 
         label.append(checkboxes[i]);
     }
@@ -426,7 +425,7 @@ function createDropdown(resident) {
     //create dropdown elements
     dropdown = document.createElement('select');
     //handle to change visible dropdown option once teams are assigned
-    dropdown.setAttribute('id', 'dropdown-' + resident.name); 
+    dropdown.setAttribute('id', 'dropdown-' + resident.name);
 
     for (let i = 0; i < optionNames.length; i++) {
 
@@ -461,8 +460,10 @@ function createDropdown(resident) {
         //update team counts - based on resident Objects
         updateTeamCount();
 
-        //clear schedule (along with resident shifts and stats)
-        clearSchedule();
+        //re-print month (mainly to change name colors in float pool)
+        if (document.getElementById('schedule').innerHTML != "") {
+            printFullSchedule();
+        }
     };
 
     return dropdown;
@@ -489,8 +490,6 @@ function loadHalfwayRadio() {
 
             if (option == 'no') halfway = false;
             if (option == 'yes') halfway = true;
-
-            clearSchedule();
         };
 
         if (halfway == false && option == 'no') input.checked = 'checked';
@@ -510,13 +509,37 @@ function loadHalfwayRadio() {
 }
 
 
-function updateAvailability() {
+function updateAvailability(resident, index) {
 
     var checkbox;
-    var availability;
+    var oldAvailability;
+    var newAvailability;
     var existingDropdown;
     var newDropdown;
 
+    //save old availability
+    oldAvailability = resident._availability();
+
+    //spot edit checkbox change
+    checkbox = document.getElementById('checkbox-' + resident.name + '-' + index);
+    if (checkbox.checked) resident.availability[index] = 1;
+    else resident.availability[index] = 0;
+
+    //get new availability
+    newAvailability = resident._availability();
+
+    //update dropdown options if needed
+    if (oldAvailability == 0 || newAvailability == 0) {
+        existingDropdown = document.getElementById('dropdown-' + resident.name);
+        newDropdown = createDropdown(resident);
+        existingDropdown.parentNode.replaceChild(newDropdown, existingDropdown);
+    }
+
+    //update resident total count - based on resident Objects
+    updateTeamCount();
+    updateTotalCount();
+
+    /*
     //update each resident
     for (let resident of residents) {
 
@@ -528,17 +551,12 @@ function updateAvailability() {
         }
 
         //update dropdown options
-        var existingDropdown = document.getElementById('dropdown-' + resident.name);
+        existingDropdown = document.getElementById('dropdown-' + resident.name);
         availability = resident._availability();
         newDropdown = createDropdown(resident);
         existingDropdown.parentNode.replaceChild(newDropdown, existingDropdown);
     }
-
-    //update resident total count - based on resident Objects
-    updateTotalCount();
-
-    //link to reset team assignments
-    resetTeamAssignments();
+    */
 }
 function updateTotalCount() {
 
@@ -672,144 +690,83 @@ function assignTeams() {
     var chiefs = [];
     var bluePoints = 0;
     var redPoints = 0;
+    var unassigned = [];
 
-    //clear team assignments (links to dropdowns-schedule-shifts-stats)
-    resetTeamAssignments();    
+
+    //create unassigned list
+    for (let resident of residents) {
+        //if unassigned
+        if (resident.team == '---') {
+            unassigned.push(resident);
+        }
+    }
 
     //set up chiefs arrays
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
-        if (resident.PGY == 5) chiefs.push(resident);
-        else break;
+    sortByPGYHigh(unassigned);
+    while (unassigned[0].PGY == 5) {
+        chiefs.push(unassigned[0]);
+        unassigned.shift();
     }
 
-    //choose edu chief based on least availability
-    sortByAvailabilityHigh(chiefs);
-    if (chiefs.length == 3) {
-        if (chiefs[2]._availability() > 0) changeDropdown(chiefs[2], 'edu');
-    }
+    //assign chief if needed
+    while (chiefs.length > 0) {
 
-    //sort based on team size (rand if tied)
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
+        sortByPGYHigh(redTeam);
+        sortByPGYHigh(blueTeam);
+        sortByAvailabilityHigh(chiefs);
 
-        //edu edge case
-        if (resident.team == 'edu') continue;
-
-        if (bluePoints < redPoints) {
-            changeDropdown(resident, 'blue');
-            bluePoints += resident._availability();
+        if (redTeam.length > 0 && redTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'red');
+            redPoints += chiefs[0]._availability();
+            chiefs.shift();
+            continue;
         }
-        else if (redPoints < bluePoints) {
-            changeDropdown(resident, 'red');
-            redPoints += resident._availability();
+        if (blueTeam.length > 0 && blueTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'blue');
+            bluePoints += chiefs[0]._availability();
+            chiefs.shift();
+            continue;
         }
-        else {
-            if (rand() < 0) {
-                changeDropdown(resident, 'blue');
-                bluePoints += resident._availability();
-            }
-            else {
-                changeDropdown(resident, 'red');
-                redPoints += resident._availability();
-            }
-        }
-    }
-
-
-
-    //fancy algorithm, questionably worse than the basic sort...
-    /*
-    var fullTime = [];
-    var partTime = [];
-    var noTime = [];
-    var chiefs = [];
-    var availability = 0;
-    var sorter = 0;
-    var bluePoints = 0;
-    var redPoints = 0;
-
-
-    
-
-    //set up extra resident arrays
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
-        //separate based on availability
-        availability = resident._availability();
-        if (availability == 4) fullTime.push(resident);
-        else if (availability > 0) partTime.push(resident);
-        else noTime.push(resident);
-        //get chiefs
-        if (resident.PGY == 5) chiefs.push(resident);
-    }
-
-    //choose edu chief based on least availability
-    sortByAvailabilityHigh(chiefs);
-    if (chiefs.length == 3) {
-        if (chiefs[2]._availability()>0) changeDropdown(chiefs[2], 'edu');
-    }
-
-    //assign all full time residents
-    for (let resident of fullTime) {
-
-        //set sorter (negative -> blue, positive -> red)
-        sorter = (blueTeam.length - redTeam.length);
-        if (sorter == 0) sorter = rand();
-
-        //assign one chief to each team, exclude eduChief
-        if (resident.PGY == 5) {
-            //skip assignment if already on edu team
-            if (resident.team == 'edu') continue;
-            //this assumes at least 2 chiefs have full availability
-            else {
-                if (sorter < 0) changeDropdown(resident, 'blue');
-                else changeDropdown(resident, 'red');
-            }
+        if (eduTeam.length > 0 && eduTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'edu');
+            chiefs.shift();
             continue;
         }
 
-        //even out team size if needed
-        if (blueTeam.length < redTeam.length) changeDropdown(resident, 'blue');
-        else if (blueTeam.length > redTeam.length) changeDropdown(resident, 'red');
-
-        //otherwise each team should have one resident from each PGY
-        else {
-            if (resident.PGY != blueTeam[blueTeam.length - 1].PGY) changeDropdown(resident, 'blue');
-            else if (resident.PGY != redTeam[redTeam.length - 1].PGY) changeDropdown(resident, 'red');
-
-            //otherwise go random
-            else {
-                if (sorter < 0) changeDropdown(resident, 'blue');
-                else changeDropdown(resident, 'red');
-            }
-        }
+        //if there are any PGY5 left...shouldn't be
+        unassigned.push(...chiefs);
+        chiefs = [];
     }
 
-    //assign part time residents to a team - simply try to equalize available weeks
-    sortByAvailabilityHigh(partTime)
-    for (let resident of partTime) {
+    //sort based on team size (rand if tied)
+    sortByPGYHigh(unassigned);
+    while (unassigned.length > 0) {
 
-        //skip if edu chief
-        if (resident.team == 'edu') continue;
+        let resident = unassigned[0];
 
-        //set sorter (negative -> blue, positive -> red)
-        sorter = (bluePoints - redPoints);
-        if (sorter == 0) sorter = rand();
-
-        //assign accordingly
-        if (sorter < 0) {
-            changeDropdown(resident, 'blue');
-            bluePoints += resident._availability();
-        }
-        else {
+        if (redPoints < bluePoints) {
             changeDropdown(resident, 'red');
             redPoints += resident._availability();
         }
+
+        else if (redPoints > bluePoints) {
+            changeDropdown(resident, 'blue');
+            bluePoints += resident._availability();
+        }
+
+        else {
+            if (rand() < 0) {
+                changeDropdown(resident, 'red');
+                redPoints += resident._availability();
+            }
+            else {
+                changeDropdown(resident, 'blue');
+                bluePoints += resident._availability();
+            }
+        }
+
+        unassigned.shift();
     }
-
-
-    */
 }
 
 function rand() {
@@ -830,7 +787,7 @@ function rand() {
 
 //------------------------------------------
 function blankSchedule() {
-    
+
     //Error Check
     //1. nobody on team '---' if they have any availability
     for (let resident of residents) {
@@ -917,6 +874,7 @@ function populateMonth() {
     var nightTeamJr;
     var sr24;
     var jr24;
+    var dayTeam = [...redTeam, ...blueTeam, ...eduTeam];
 
     for (let week = 0; week < 4; week++) {
 
@@ -943,7 +901,7 @@ function populateMonth() {
             day.nightSr.push(assignNight(nightTeamSr, day));
             day.nightJr.push(assignNight(nightTeamJr, day));
         }
-        
+
         //1. assign weekday chiefs
         for (let i = week * 7; i < (week * 7) + 5; i++) {
             day = month[i];
@@ -964,13 +922,13 @@ function populateMonth() {
 
         //3. assign 24 Jr
         for (let i = (week * 7) + 4; i < (week * 7) + 6; i++) {
-            
+
             day = month[i];
 
             //choose the 24hr jr (will return null if none available)
             jr24 = choose24Jr(residents, day);
             if (empty(jr24)) continue;
-        
+
             //assign to night shift
             day.nightJr.push(assignNight(jr24, day));
 
@@ -990,7 +948,7 @@ function populateMonth() {
 
         //4. assign 24 Sr (Sat first, then Fri to best consider PGY 5s)
         for (let i = (week * 7) + 5; i > (week * 7) + 3; i--) {
-        
+
             day = month[i];
 
             //choose the 24hr sr (will return null if none available)
@@ -1032,7 +990,7 @@ function populateMonth() {
             }
             //consults
             if (day.consults.length == 0) {
-                chosen = chooseConsult(residents, day);
+                chosen = chooseConsult(dayTeam, day);
                 if (!empty(chosen)) day.consults.push(assignConsult(chosen, day));
             }
         }
@@ -1040,7 +998,7 @@ function populateMonth() {
         //6. assign weekday consults
         for (let i = week * 7; i < (week * 7) + 5; i++) {
             day = month[i];
-            chosen = chooseConsult(residents, day);
+            chosen = chooseConsult(dayTeam, day);
             if (!empty(chosen)) day.consults.push(assignConsult(chosen, day));
         }
 
@@ -1191,7 +1149,7 @@ function sortByGoldenWeekend(residents, day) {
 
     residents.sort(function (low, high) {
 
-        
+
     });
 }
 
@@ -1563,15 +1521,15 @@ function makeAssignmentCell(argWeek, day) {
 
     //output each position
     var priorPosition = "";
-        
+
     //output position regardless of if it is filled
     //output name only if there
     //check if there are any more in that same position
     //output whitespace rather than position if it is a repeat
 
     for (let position of positions) {
-        
-        let i=0;
+
+        let i = 0;
 
         do {
 
@@ -1618,7 +1576,7 @@ function makeAssignmentCell(argWeek, day) {
 
             //iterate
             i++;
-            priorPosition = position; 
+            priorPosition = position;
 
         } while (i < month[day][position].length);
 
@@ -1728,7 +1686,7 @@ function makeFloatPoolRow(argWeek) {
 
                     menu.append(option);
                 }
-                
+
                 container.append(menu);
 
                 //events
@@ -2022,14 +1980,14 @@ function outputStats() {
                 }
             }
             //find last non-blank
-            for (let count = stats[4][shiftType].length - 1; count >=0 ; count--) {
+            for (let count = stats[4][shiftType].length - 1; count >= 0; count--) {
                 if (stats[4][shiftType][count].length != 0) {
                     last = count;
                     break;
                 }
             }
             //output
-            for (let count = first; count < last+1; count++) {
+            for (let count = first; count < last + 1; count++) {
                 cell.innerHTML += count + ': ';
                 for (let i = 0; i < stats[4][shiftType][count].length; i++) {
                     let resident = stats[4][shiftType][count][i];
@@ -2235,7 +2193,7 @@ function importData(files) {
         document.getElementById('all-residents').innerHTML = '';
         clearSchedule();
 
-        
+
 
         //convert resident json to Resident class (to access methods)
         for (let i = 0; i < importedResidents.length; i++) {
@@ -2252,7 +2210,7 @@ function importData(files) {
         for (let resident of residents) {
             changeDropdown(resident, resident.team);
         }
-        
+
         //make copy of shifts array
         for (let i = 0; i < importedResidents.length; i++) {
             for (let shiftType of shiftTypes) {
@@ -2285,12 +2243,12 @@ function importData(files) {
         //convert halfway JSON
         halfway = importedHalfway;
         loadHalfwayRadio();
-        
-        
+
+
     };
 
     // Read the contents of the selected file as text
     reader.readAsText(selectedFile);
 
-    
+
 }
