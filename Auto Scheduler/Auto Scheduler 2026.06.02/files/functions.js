@@ -1,8 +1,5 @@
 {/* To Do 
 
-
- - allow changing availability without nuclear bomb response
-
 */}
 
 //-----------------------------
@@ -1145,12 +1142,9 @@ function sortByShiftsThisWeek(residents, day) {
         return num;
     });
 }
-function sortByGoldenWeekend(residents, day) {
+function sortByPGYHighAlphabetical(residents) {
 
-    residents.sort(function (low, high) {
-
-
-    });
+    residents.sort(byPGYHighAlphabetical);
 }
 
 function byPGYHigh(low, high) {
@@ -1270,15 +1264,16 @@ function byTuesdays(low, high) {
     num = rand();
     return num;
 }
-function byGoldenWeekend(low, high) {
+function byPGYHighAlphabetical(low, high) {
 
     var num = 0;
 
-    //sort golden weekend high-low (true=1, false=0)
-    num = high.hasGoldenWeekend() - low.hasGoldenWeekend();
+    //sort PGY high to low
+    num = high.PGY - low.PGY;
     if (num != 0) return num;
 
-    //allow return of 0 at this time
+    //if equal return alphabetically
+    num = low.name.localeCompare(high.name);
     return num;
 }
 
@@ -2181,7 +2176,7 @@ function importData(files) {
 
         // Perform additional actions with the parsed JSON data
         var importedResidents = jsonData[0];
-        sortByPGYHigh(importedResidents);
+        sortByPGYHighAlphabetical(importedResidents);
         var importedMonth = jsonData[1];
         var importedHalfway = jsonData[2];
 
@@ -2251,4 +2246,50 @@ function importData(files) {
     reader.readAsText(selectedFile);
 
 
+}
+
+function recount() {
+
+    var week;
+
+    //zero out resident stats
+    for (let resident of residents) {
+        for (let i = 0; i < 4; i++) {
+            week = i;
+            for (let shift of shiftTypes) {
+                resident[shift][week] = 0;
+            }
+        }
+    }
+
+    //re-count
+    for (let day of month) {
+        week = day.weekNum();
+        for (let position of positions) {
+            for (let resident of day[position]) {
+
+                //normal shifts
+                resident.shifts[week] += 1;
+
+                //consults
+                if (position.includes('consults')) resident.consults[week] += 1;
+
+                //nights
+                if (position.includes('night')) resident.nights[week] += 1;
+
+                //tuesdays
+                if (day.isTue()) resident.tuesdays[week] += 1;
+
+                //weekends (Fri night, Sat day/night, Sun day/night)
+                if (day.isSatSun() || (day.name() == 'Fri' && position.includes('night'))) {
+                    resident.weekends[week] += 1;
+                }
+
+            }
+        }
+
+    }
+
+    printFullSchedule();
+    updateStats();
 }

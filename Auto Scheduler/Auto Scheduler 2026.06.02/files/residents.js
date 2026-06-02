@@ -3,7 +3,7 @@ residentsAll = [
     {name:'Ngo', PGY:5},
     {name:'Ruedige', PGY:5},
     {name:'Shao', PGY:5},
-    {name:'BLANK', PGY:4},
+    {name:'Beck', PGY:4},
     {name:'Henness', PGY:4},
     {name:'Lad', PGY:4},
     {name:'Chu', PGY:3},

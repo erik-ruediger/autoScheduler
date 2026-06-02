@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+	<title>Auto Scheduler ACTS</title>
+
+	<link type="text/css" rel="stylesheet" href="stylesheet.css" />
+
+	<script src="residents.js"></script>
+
+	<script src="functions.js"></script>
+
+</head>
+
+<body>
+
+	<div id="resident-sidebar" class="sidebar">
+
+		<div>
+			<h2 class="sidebar-title">All Residents</h2>
+			<span class="resident-availability-name">name</span>
+			<span>1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp;&nbsp; team</span>
+			<form id="all-residents"></form>
+			<br>
+			<div id="total-count"></div>
+			<div id="team-count"></div>
+			<br>
+			<span id="halfway"></span>
+		</div>
+
+		<div>
+			<br><br><br><br><br><br><br><br><br><br><br><br><br>
+			<br><br><br><br><br><br><br><br><br><br><br><br><br>
+			<br><br><br><br><br><br><br><br><br><br><br><br><br>
+		</div>
+
+
+
+	</div>
+
+	<div id="main" class="main">
+
+		<button id='toggleSidebar' class='button' onclick="toggleSidebar()"> &#9664; </button>
+		<span>&nbsp;|&nbsp;</span>
+
+		<button id="assignTeams" class="button" onclick="assignTeams()">Assign Teams</button>
+		<button id='generateSchedule' class='button' onclick="generateSchedule()">Generate Schedule</button>
+		<button id='blankSchedule' class='button' onclick="blankSchedule()">Blank Schedule</button>
+		<span>&nbsp;|&nbsp;</span>
+
+		<button id='export-data' class='button' onclick='exportData()'>Save</button>
+		<button id='import-data' class='button' onclick="document.getElementById('fileInput').click();">Load</button>
+		<!-- Invisible file input -->
+		<input type="file" id="fileInput" accept=".json" style="display: none" onchange="importData(this.files)">
+		<span>&nbsp;|&nbsp;</span>
+
+		<button onclick='recount()'>Recount</button>
+		<span>&nbsp;|&nbsp;</span>
+
+		<table id="schedule" class="schedule"></table>
+
+		<div id="custom-menus"></div>
+
+		<div>
+			<h2 id="stats-title"></h2>
+			<table id="stats"></table>
+		</div>
+
+	</div>
+
+	<script>
+
+		load();
+
+	</script>
+
+</body>
+
+</html>

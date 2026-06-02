@@ -9,10 +9,10 @@ function load_old_residents() {
 	var row;
 	var cell;
 	var input;
-	
+
 	table = document.getElementById('resident-table');
 	table.innerHTML = "";
-	
+
 	//create header
 	row = document.createElement('tr');
 	cell = document.createElement('th');
@@ -22,7 +22,7 @@ function load_old_residents() {
 	cell.innerHTML = "PGY";
 	row.append(cell);
 
-	for (let i=0; i<old_residents.length; i++) {
+	for (let i = 0; i < old_residents.length; i++) {
 
 		row = document.createElement('tr');
 
@@ -48,14 +48,14 @@ function load_old_residents() {
 }
 
 function save_new_residents() {
-	
+
 	new_residents = [];
 
 	var newName;
 	var newPGY;
 
 	//read new info, trims leading and trailing whitespace
-	for (let i=0; i<old_residents.length; i++) {
+	for (let i = 0; i < old_residents.length; i++) {
 		newName = document.getElementById('resident-' + i + '-name').value.trim();
 		newPGY = document.getElementById('resident-' + i + '-PGY').value.trim();
 
@@ -69,32 +69,32 @@ function save_new_residents() {
 	for (let resident of new_residents) {
 		if (resident.name == "") {
 			window.alert('Error: no blank resident name allowed');
-            return;
+			return;
 		}
 	}
 	//PGY 1-5
-	var validPGY = ['1','2','3','4','5'];
+	var validPGY = ['1', '2', '3', '4', '5'];
 	for (let resident of new_residents) {
 		if (!validPGY.includes(resident.PGY)) {
 			window.alert('Error: PGY must be whole number 1-5\n' + resident.PGY + ' not allowed');
-            return;
+			return;
 		}
 	}
 
 	//order by PGY high to low then alphabetically
-	sortByPGYHigh(new_residents);
+	sortByPGYHighAlphabetical(new_residents);
 
 	//save to file
 	var textContent = "residentsAll = [\n\n";
 	for (let resident of new_residents) {
 		textContent += "    {name:'" + resident.name + "', PGY:" + resident.PGY + "}";
-		if (resident != new_residents[new_residents.length-1]) textContent += ",";
+		if (resident != new_residents[new_residents.length - 1]) textContent += ",";
 		textContent += "\n";
 	}
 	textContent += "];";
 
-    // Create a Blob
-    const blob = new Blob([textContent], { type: 'text/plain' });
+	// Create a Blob
+	const blob = new Blob([textContent], { type: 'text/plain' });
 
 	// Create a link element to download the Blob as a file
 	var link = document.createElement('a');
@@ -105,22 +105,22 @@ function save_new_residents() {
 
 function hasDuplicateNames(residents) {
 
-    var names = [];
-    for (let resident of residents) {
-        if (names.includes(resident.name)) {
-            window.alert('Error: duplicate name (' + resident.name + ')');
-            return true;
-        }
-        else {
-            names.push(resident.name);
-        }
-    }
+	var names = [];
+	for (let resident of residents) {
+		if (names.includes(resident.name)) {
+			window.alert('Error: duplicate name (' + resident.name + ')');
+			return true;
+		}
+		else {
+			names.push(resident.name);
+		}
+	}
 
-    return false;
+	return false;
 }
 
 
-function byPGYHigh(low, high) {
+function byPGYHighAlphabetical(low, high) {
 
 	var num = 0;
 
@@ -132,7 +132,7 @@ function byPGYHigh(low, high) {
 	num = low.name.localeCompare(high.name);
 	return num;
 }
-function sortByPGYHigh(residents) {
+function sortByPGYHighAlphabetical(residents) {
 
-	residents.sort(byPGYHigh);
+	residents.sort(byPGYHighAlphabetical);
 }
