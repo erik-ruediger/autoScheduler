@@ -1,15 +1,33 @@
+{/* To Do 
+
+*/}
+
 //-----------------------------
 
 /* global data */ {
     var month = [];
     var residents = [];
+
     var blueTeam = [];
     var redTeam = [];
     var eduTeam = [];
-    var positions = ['blueChief', 'blueStaff', 'redChief', 'redStaff', 'consult', 'nightSr', 'nightJr'];
-    var shiftTypes = ['shifts', 'consults', 'weekends', 'nights'];
+    var nightTeam = [];
+
+    var teams = [redTeam, blueTeam, eduTeam, nightTeam];
+    var teamNames = ["---", "red", "blue", "edu", "night"];
+
+    var positions = ['redChief', 'blueChief', 'consults', 'redStaff', 'blueStaff', 'nightSr', 'nightJr'];
+    var shiftTypes = ['shifts', 'consults', 'weekends', 'nights', 'tuesdays'];
     var stats = [];
+
     var halfway = false;
+    var redFirst = true;
+
+    if (!redFirst) {
+        positions = ['blueChief', 'blueStaff', 'redChief', 'redStaff', 'consults', 'nightSr', 'nightJr'];
+        teamNames = ["---", "blue", "red", "edu", "night"];
+        teams = [blueTeam, redTeam, eduTeam, nightTeam];
+    }
 }
 
 //-----------------------------
@@ -53,6 +71,13 @@ class Resident {
     _nights() {
         var total = 0;
         for (let subtotal of this.nights) {
+            total += subtotal;
+        }
+        return total;
+    }
+    _tuesdays() {
+        var total = 0;
+        for (let subtotal of this.tuesdays) {
             total += subtotal;
         }
         return total;
@@ -111,7 +136,7 @@ class Resident {
 
         //only PGY 1 & 2
         //if (this.PGY < 3) return true;
-        
+
         else return false;
     }
 
@@ -124,8 +149,8 @@ class Resident {
         //2. check if working during the day
         if (this.isWorkingDay(day)) return false;
 
-        //3. check if working yesterday night (only on Sat/Sun to prevent bug on day 0)
-        if (day.isSatSun()) {
+        //3. check if working yesterday night (first check that it's NOT day 0)
+        if (day.dayIndex() != 0) {
             if (this.isWorkingNight(day.yesterday())) return false;
         }
 
@@ -140,14 +165,14 @@ class Resident {
         //2. check if already working tonight
         if (this.isWorkingNight(day)) return false;
 
-        //3. check if working yesterday night (only on Sat/Sun to prevent bug on day 0)
-        if (day.isSatSun()) {
-            if (this.isWorkingNight(day.yesterday())) return false;
+        //3. check if working yesterday 24hr shift (first check that it's NOT day 0)
+        if (day.dayIndex() != 0) {
+            if (this.isWorkingDay(day.yesterday()) && this.isWorkingNight(day.yesterday())) return false;
         }
 
-        //4. check if working tomorrow at all (only Fri/Sat to prevent bug on day 28)
-        if (day.isFriSat()) {
-            if (this.isWorking(day.tomorrow())) return false;
+        //4. check if working tomorrow day (first check that it's NOT the last day, index #27)
+        if (day.dayIndex() != 27) {
+            if (this.isWorkingDay(day.tomorrow())) return false;
         }
 
         //is available if none of the conditions above
@@ -166,7 +191,7 @@ class Resident {
         if (day.blueStaff.includes(this)) return true;
         if (day.redChief.includes(this)) return true;
         if (day.redStaff.includes(this)) return true;
-        if (day.consult.includes(this)) return true;
+        if (day.consults.includes(this)) return true;
         else return false;
     }
     isWorkingNight(day) {
@@ -232,6 +257,9 @@ class Day {
     dayNum() {
         return this.num % 7;
     }
+    dayIndex() {
+        return this.num;
+    }
     yesterday() {
         if (this.num == 0) return null;
         else return month[this.num - 1];
@@ -246,6 +274,10 @@ class Day {
     }
     isSatSun() {
         if (this.dayNum() == 5 || this.dayNum() == 6) return true;
+        else return false;
+    }
+    isTue() {
+        if (this.dayNum() == 1) return true;
         else return false;
     }
     has(team, position) {
@@ -367,7 +399,7 @@ function listResident(resident) {
         checkboxes[i].setAttribute('week', i);
 
         //update resident availability and dropdown options if appropriate - links to clear team, schedule, stats
-        checkboxes[i].addEventListener('change', updateAvailability);
+        checkboxes[i].addEventListener('change', (event) => { updateAvailability(resident, i); });
 
         label.append(checkboxes[i]);
     }
@@ -381,21 +413,27 @@ function listResident(resident) {
 function createDropdown(resident) {
 
     var dropdown;
-    var values = ['---', 'blue', 'red', 'edu'];
+    var optionNames;
     var options = [];
 
-
-    if (resident._availability() == 0) values = ['---'];
+    if (resident._availability() == 0) optionNames = ['---'];
+    else optionNames = teamNames;
 
     //create dropdown elements
     dropdown = document.createElement('select');
-    dropdown.setAttribute('id', 'dropdown-' + resident.name); //handle to change visible dropdown option once teams are assigned
-    for (let i = 0; i < values.length; i++) {
-        options[i] = document.createElement('option');
-        options[i].innerHTML = values[i];
+    //handle to change visible dropdown option once teams are assigned
+    dropdown.setAttribute('id', 'dropdown-' + resident.name);
 
-        if (values[i] == 'blue' || values[i] == 'red') {
-            options[i].setAttribute('class', values[i] + '-text');
+    for (let i = 0; i < optionNames.length; i++) {
+
+        //if resident is fully unavailable, only list "---"
+
+
+        options[i] = document.createElement('option');
+        options[i].innerHTML = optionNames[i];
+
+        if (optionNames[i] == 'blue' || optionNames[i] == 'red') {
+            options[i].setAttribute('class', optionNames[i] + '-text');
         }
         else options[i].setAttribute('class', 'black-text');
         dropdown.append(options[i]);
@@ -409,6 +447,7 @@ function createDropdown(resident) {
         if (dropdown.value == 'blue') pushBlue(resident);
         else if (dropdown.value == 'red') pushRed(resident);
         else if (dropdown.value == 'edu') pushEdu(resident);
+        else if (dropdown.value == 'night') pushNight(resident);
 
         //update color
         if (dropdown.value == 'blue') dropdown.setAttribute('class', 'blue-text');
@@ -418,8 +457,10 @@ function createDropdown(resident) {
         //update team counts - based on resident Objects
         updateTeamCount();
 
-        //clear schedule (along with resident shifts and stats)
-        clearSchedule();
+        //re-print month (mainly to change name colors in float pool)
+        if (document.getElementById('schedule').innerHTML != "") {
+            printFullSchedule();
+        }
     };
 
     return dropdown;
@@ -446,8 +487,6 @@ function loadHalfwayRadio() {
 
             if (option == 'no') halfway = false;
             if (option == 'yes') halfway = true;
-
-            clearSchedule();
         };
 
         if (halfway == false && option == 'no') input.checked = 'checked';
@@ -467,13 +506,37 @@ function loadHalfwayRadio() {
 }
 
 
-function updateAvailability() {
+function updateAvailability(resident, index) {
 
     var checkbox;
-    var availability;
+    var oldAvailability;
+    var newAvailability;
     var existingDropdown;
     var newDropdown;
 
+    //save old availability
+    oldAvailability = resident._availability();
+
+    //spot edit checkbox change
+    checkbox = document.getElementById('checkbox-' + resident.name + '-' + index);
+    if (checkbox.checked) resident.availability[index] = 1;
+    else resident.availability[index] = 0;
+
+    //get new availability
+    newAvailability = resident._availability();
+
+    //update dropdown options if needed
+    if (oldAvailability == 0 || newAvailability == 0) {
+        existingDropdown = document.getElementById('dropdown-' + resident.name);
+        newDropdown = createDropdown(resident);
+        existingDropdown.parentNode.replaceChild(newDropdown, existingDropdown);
+    }
+
+    //update resident total count - based on resident Objects
+    updateTeamCount();
+    updateTotalCount();
+
+    /*
     //update each resident
     for (let resident of residents) {
 
@@ -485,17 +548,12 @@ function updateAvailability() {
         }
 
         //update dropdown options
-        var existingDropdown = document.getElementById('dropdown-' + resident.name);
+        existingDropdown = document.getElementById('dropdown-' + resident.name);
         availability = resident._availability();
         newDropdown = createDropdown(resident);
         existingDropdown.parentNode.replaceChild(newDropdown, existingDropdown);
     }
-
-    //update resident total count - based on resident Objects
-    updateTotalCount();
-
-    //link to reset team assignments
-    resetTeamAssignments();
+    */
 }
 function updateTotalCount() {
 
@@ -535,11 +593,23 @@ function updateTeamCount() {
     }
 
     teamCountHTML.innerHTML = '';
-    teamCountHTML.innerHTML += '&nbsp&nbsp' + 'Blue Team: ' + (blueCount / 4) + '<br>';
-    teamCountHTML.innerHTML += '&nbsp&nbsp' + 'Red Team: ' + (redCount / 4) + '<br>';
+
+    if (redFirst) {
+        teamCountHTML.innerHTML += '<span style="color: red;">' + '&nbsp&nbsp' + 'Red Team: ' + (redCount / 4) + '</span >' + '<br>';
+        teamCountHTML.innerHTML += '<span style="color: blue;">' + '&nbsp&nbsp' + 'Blue Team: ' + (blueCount / 4) + '</span >' + '<br>';
+    }
+    else {
+        teamCountHTML.innerHTML += '<span style="color: blue;">' + '&nbsp&nbsp' + 'Blue Team: ' + (blueCount / 4) + '</span >' + '<br>';
+        teamCountHTML.innerHTML += '<span style="color: red;">' + '&nbsp&nbsp' + 'Red Team: ' + (redCount / 4) + '</span >' + '<br>';
+    }
+
     teamCountHTML.innerHTML += '&nbsp&nbsp' + 'Edu Team: ' + (eduCount / 4);
 }
 function clearSchedule() {
+
+    container = document.getElementById('custom-menus');
+    container.innerHTML = '';
+
 
     //clear month Object
     month = [];
@@ -579,7 +649,6 @@ function changeDropdown(resident, argTeam = 'reset') {
 function unassignTeam(resident) {
 
     //unassign from all teams
-    var teams = [blueTeam, redTeam, eduTeam];
     for (let team of teams) {
         if (team.includes(resident)) {
             team.splice(team.indexOf(resident), 1);
@@ -606,150 +675,95 @@ function pushEdu(resident) {
     eduTeam.push(resident);
     resident.team = 'edu';
 }
+function pushNight(resident) {
+
+    //add to night team and change teamColor
+    nightTeam.push(resident);
+    resident.team = 'night';
+}
 
 function assignTeams() {
 
     var chiefs = [];
     var bluePoints = 0;
     var redPoints = 0;
+    var unassigned = [];
 
-    //clear team assignments (links to dropdowns-schedule-shifts-stats)
-    resetTeamAssignments();    
+
+    //create unassigned list
+    for (let resident of residents) {
+        //if unassigned
+        if (resident.team == '---') {
+            unassigned.push(resident);
+        }
+    }
 
     //set up chiefs arrays
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
-        if (resident.PGY == 5) chiefs.push(resident);
-        else break;
+    sortByPGYHigh(unassigned);
+    while (unassigned[0].PGY == 5) {
+        chiefs.push(unassigned[0]);
+        unassigned.shift();
     }
 
-    //choose edu chief based on least availability
-    sortByAvailabilityHigh(chiefs);
-    if (chiefs.length == 3) {
-        if (chiefs[2]._availability() > 0) changeDropdown(chiefs[2], 'edu');
-    }
+    //assign chief if needed
+    while (chiefs.length > 0) {
 
-    //sort based on team size (rand if tied)
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
+        sortByPGYHigh(redTeam);
+        sortByPGYHigh(blueTeam);
+        sortByAvailabilityHigh(chiefs);
 
-        //edu edge case
-        if (resident.team == 'edu') continue;
-
-        if (bluePoints < redPoints) {
-            changeDropdown(resident, 'blue');
-            bluePoints += resident._availability();
+        if (redTeam.length > 0 && redTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'red');
+            redPoints += chiefs[0]._availability();
+            chiefs.shift();
+            continue;
         }
-        else if (redPoints < bluePoints) {
-            changeDropdown(resident, 'red');
-            redPoints += resident._availability();
+        if (blueTeam.length > 0 && blueTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'blue');
+            bluePoints += chiefs[0]._availability();
+            chiefs.shift();
+            continue;
         }
-        else {
-            if (rand() < 0) {
-                changeDropdown(resident, 'blue');
-                bluePoints += resident._availability();
-            }
-            else {
-                changeDropdown(resident, 'red');
-                redPoints += resident._availability();
-            }
-        }
-    }
-
-
-
-    //fancy algorithm, questionably worse than the basic sort...
-    /*
-    var fullTime = [];
-    var partTime = [];
-    var noTime = [];
-    var chiefs = [];
-    var availability = 0;
-    var sorter = 0;
-    var bluePoints = 0;
-    var redPoints = 0;
-
-
-    
-
-    //set up extra resident arrays
-    sortByPGYHigh(residents);
-    for (let resident of residents) {
-        //separate based on availability
-        availability = resident._availability();
-        if (availability == 4) fullTime.push(resident);
-        else if (availability > 0) partTime.push(resident);
-        else noTime.push(resident);
-        //get chiefs
-        if (resident.PGY == 5) chiefs.push(resident);
-    }
-
-    //choose edu chief based on least availability
-    sortByAvailabilityHigh(chiefs);
-    if (chiefs.length == 3) {
-        if (chiefs[2]._availability()>0) changeDropdown(chiefs[2], 'edu');
-    }
-
-    //assign all full time residents
-    for (let resident of fullTime) {
-
-        //set sorter (negative -> blue, positive -> red)
-        sorter = (blueTeam.length - redTeam.length);
-        if (sorter == 0) sorter = rand();
-
-        //assign one chief to each team, exclude eduChief
-        if (resident.PGY == 5) {
-            //skip assignment if already on edu team
-            if (resident.team == 'edu') continue;
-            //this assumes at least 2 chiefs have full availability
-            else {
-                if (sorter < 0) changeDropdown(resident, 'blue');
-                else changeDropdown(resident, 'red');
-            }
+        if (eduTeam.length > 0 && eduTeam[0].PGY != 5) {
+            changeDropdown(chiefs[0], 'edu');
+            chiefs.shift();
             continue;
         }
 
-        //even out team size if needed
-        if (blueTeam.length < redTeam.length) changeDropdown(resident, 'blue');
-        else if (blueTeam.length > redTeam.length) changeDropdown(resident, 'red');
-
-        //otherwise each team should have one resident from each PGY
-        else {
-            if (resident.PGY != blueTeam[blueTeam.length - 1].PGY) changeDropdown(resident, 'blue');
-            else if (resident.PGY != redTeam[redTeam.length - 1].PGY) changeDropdown(resident, 'red');
-
-            //otherwise go random
-            else {
-                if (sorter < 0) changeDropdown(resident, 'blue');
-                else changeDropdown(resident, 'red');
-            }
-        }
+        //if there are any PGY5 left...shouldn't be
+        unassigned.push(...chiefs);
+        chiefs = [];
     }
 
-    //assign part time residents to a team - simply try to equalize available weeks
-    sortByAvailabilityHigh(partTime)
-    for (let resident of partTime) {
+    //sort based on team size (rand if tied)
+    sortByPGYHigh(unassigned);
+    while (unassigned.length > 0) {
 
-        //skip if edu chief
-        if (resident.team == 'edu') continue;
+        let resident = unassigned[0];
 
-        //set sorter (negative -> blue, positive -> red)
-        sorter = (bluePoints - redPoints);
-        if (sorter == 0) sorter = rand();
-
-        //assign accordingly
-        if (sorter < 0) {
-            changeDropdown(resident, 'blue');
-            bluePoints += resident._availability();
-        }
-        else {
+        if (redPoints < bluePoints) {
             changeDropdown(resident, 'red');
             redPoints += resident._availability();
         }
+
+        else if (redPoints > bluePoints) {
+            changeDropdown(resident, 'blue');
+            bluePoints += resident._availability();
+        }
+
+        else {
+            if (rand() < 0) {
+                changeDropdown(resident, 'red');
+                redPoints += resident._availability();
+            }
+            else {
+                changeDropdown(resident, 'blue');
+                bluePoints += resident._availability();
+            }
+        }
+
+        unassigned.shift();
     }
-
-
-    */
 }
 
 function rand() {
@@ -770,7 +784,7 @@ function rand() {
 
 //------------------------------------------
 function blankSchedule() {
-    
+
     //Error Check
     //1. nobody on team '---' if they have any availability
     for (let resident of residents) {
@@ -826,6 +840,11 @@ function generateSchedule() {
         alert('Only PGY 4 or 5 allowed on edu team (currently PGY-' + eduTeam[0].PGY + ').');
         return;
     }
+    //4. night team must have exactly 2 people
+    if (nightTeam.length != 2) {
+        alert('Night team must have exactly two members (right now there are ' + nightTeam.length + ').');
+        return;
+    }
 
     //clear schedule, month Object, resident shifts, stats
     clearSchedule();
@@ -848,58 +867,85 @@ function populateMonth() {
 
     var chosen;
     var day;
+    var nightTeamSr;
+    var nightTeamJr;
     var sr24;
     var jr24;
+    var dayTeam = [...redTeam, ...blueTeam, ...eduTeam];
 
     for (let week = 0; week < 4; week++) {
+
+        //0. assign night team
+        for (let i = week * 7; i < (week * 7) + 7; i++) {
+
+            day = month[i];
+
+            //do not assign on Fri or Sat night
+            if (day.dayNum() == 4 || day.dayNum() == 5) continue;
+
+            //figure out which is more senior
+            if (nightTeam[0].PGY > nightTeam[1].PGY) {
+                nightTeamSr = nightTeam[0];
+                nightTeamJr = nightTeam[1];
+            }
+            else {
+                nightTeamSr = nightTeam[1];
+                nightTeamJr = nightTeam[0];
+            }
+
+
+            //assign appropriately
+            day.nightSr.push(assign(nightTeamSr, 'nightSr', day));
+            day.nightJr.push(assign(nightTeamJr, 'nightJr', day));
+        }
 
         //1. assign weekday chiefs
         for (let i = week * 7; i < (week * 7) + 5; i++) {
             day = month[i];
             chosen = chooseChief(blueTeam, day);
-            if (!empty(chosen)) day.blueChief.push(assignShift(chosen, day));
+            if (!empty(chosen)) day.blueChief.push(assign(chosen, 'blueChief', day));
             chosen = chooseChief(redTeam, day);
-            if (!empty(chosen)) day.redChief.push(assignShift(chosen, day));
+            if (!empty(chosen)) day.redChief.push(assign(chosen, 'redChief', day));
         }
 
         //2. assign weekend chiefs (edu chief and one 4th year)
         for (let i = (week * 7) + 5; i < (week * 7) + 7; i++) {
             day = month[i];
             chosen = chooseChiefWeekend(blueTeam, day);
-            if (!empty(chosen)) day.blueChief.push(assignWeekend(chosen, day));
+            if (!empty(chosen)) day.blueChief.push(assign(chosen, 'blueChief', day));
             chosen = chooseChiefWeekend(redTeam, day);
-            if (!empty(chosen)) day.redChief.push(assignWeekend(chosen, day));
+            if (!empty(chosen)) day.redChief.push(assign(chosen, 'redChief', day));
         }
 
         //3. assign 24 Jr
         for (let i = (week * 7) + 4; i < (week * 7) + 6; i++) {
-            
+
             day = month[i];
 
             //choose the 24hr jr (will return null if none available)
             jr24 = choose24Jr(residents, day);
             if (empty(jr24)) continue;
-        
+
             //assign to night shift
-            day.nightJr.push(assignNight(jr24, day));
+            day.nightJr.push(assign(jr24, 'nightJr', day));
 
             //skip if already working during the day
             if (jr24.isWorkingDay(day)) continue;
 
             //if Fri, assign to team staff
             if (day.dayNum() == 4) {
-                day[jr24.team + 'Staff'].push(assignShift(jr24, day));
+                day[jr24.team + 'Staff'].push(assign(jr24, (jr24.team + 'Staff'), day));
             }
 
             //if Sat, assign to team staff
             if (day.dayNum() == 5) {
-                day[jr24.team + 'Staff'].push(assignWeekend(jr24, day));
+                day[jr24.team + 'Staff'].push(assign(jr24, (jr24.team + 'Staff'), day));
             }
         }
 
         //4. assign 24 Sr (Sat first, then Fri to best consider PGY 5s)
         for (let i = (week * 7) + 5; i > (week * 7) + 3; i--) {
-        
+
             day = month[i];
 
             //choose the 24hr sr (will return null if none available)
@@ -907,22 +953,22 @@ function populateMonth() {
             if (empty(sr24)) continue;
 
             //assign to night shift
-            day.nightSr.push(assignNight(sr24, day));
+            day.nightSr.push(assign(sr24, 'nightSr', day));
 
             //skip if already working during the day
             if (sr24.isWorkingDay(day)) continue;
 
             //if Fri, assign to team staff
             if (day.dayNum() == 4) {
-                day[sr24.team + 'Staff'].push(assignShift(sr24, day));
+                day[sr24.team + 'Staff'].push(assign(sr24, (sr24.team + 'Staff'), day));
             }
 
-            //if Sat, assign to team staff (vs consult if jr24 already on team)
+            //if Sat, assign to team staff (vs consults if jr24 already on team)
             if (day.dayNum() == 5) {
                 if (day[sr24.team + 'Staff'].length = 0) {
-                    day[sr24.team + 'Staff'].push(assignWeekend(sr24, day));
+                    day[sr24.team + 'Staff'].push(assign(sr24, (sr24.team + 'Staff'), day));
                 }
-                else day.consult.push(assignConsult(sr24, day));
+                else day.consults.push(assign(sr24, 'consults', day));
             }
         }
 
@@ -932,25 +978,25 @@ function populateMonth() {
             //blue Staff
             if (day.blueStaff.length == 0) {
                 chosen = chooseWeekend(blueTeam, day);
-                if (!empty(chosen)) day.blueStaff.push(assignWeekend(chosen, day));
+                if (!empty(chosen)) day.blueStaff.push(assign(chosen, 'blueStaff', day));
             }
             //red Staff
             if (day.redStaff.length == 0) {
                 chosen = chooseWeekend(redTeam, day);
-                if (!empty(chosen)) day.redStaff.push(assignWeekend(chosen, day));
+                if (!empty(chosen)) day.redStaff.push(assign(chosen, 'redStaff', day));
             }
             //consults
-            if (day.consult.length == 0) {
-                chosen = chooseConsult(residents, day);
-                if (!empty(chosen)) day.consult.push(assignConsult(chosen, day));
+            if (day.consults.length == 0) {
+                chosen = chooseConsult(dayTeam, day);
+                if (!empty(chosen)) day.consults.push(assign(chosen, 'consults', day));
             }
         }
 
         //6. assign weekday consults
         for (let i = week * 7; i < (week * 7) + 5; i++) {
             day = month[i];
-            chosen = chooseConsult(residents, day);
-            if (!empty(chosen)) day.consult.push(assignConsult(chosen, day));
+            chosen = chooseConsult(dayTeam, day);
+            if (!empty(chosen)) day.consults.push(assign(chosen, 'consults', day));
         }
 
         //7. assign weekday sr
@@ -961,14 +1007,13 @@ function populateMonth() {
             //seniors
             if (!day.has('blue', 'sr')) {
                 chosen = chooseSr(blueTeam, day);
-                if (!empty(chosen)) day.blueStaff.push(assignShift(chosen, day));
+                if (!empty(chosen)) day.blueStaff.push(assign(chosen, 'blueStaff', day));
             }
             if (!day.has('red', 'sr')) {
                 chosen = chooseSr(redTeam, day);
-                if (!empty(chosen)) day.redStaff.push(assignShift(chosen, day));
+                if (!empty(chosen)) day.redStaff.push(assign(chosen, 'redStaff', day));
             }
         }
-
 
         //8. assign week day jr
         for (let i = week * 7; i < (week * 7) + 5; i++) {
@@ -978,11 +1023,11 @@ function populateMonth() {
             //assign junior (unless already 2 staff)
             if (day.blueStaff.length < 2) {
                 chosen = chooseJr(blueTeam, day);
-                if (!empty(chosen)) day.blueStaff.push(assignShift(chosen, day));
+                if (!empty(chosen)) day.blueStaff.push(assign(chosen, 'blueStaff', day));
             }
             if (day.redStaff.length < 2) {
                 chosen = chooseJr(redTeam, day);
-                if (!empty(chosen)) day.redStaff.push(assignShift(chosen, day));
+                if (!empty(chosen)) day.redStaff.push(assign(chosen, 'redStaff', day));
             }
 
             //organize staff list
@@ -992,57 +1037,41 @@ function populateMonth() {
     }
 }
 
-function assignShift(resident, day) {
+function assign(resident, position, day) {
 
     if (empty(resident)) return null;
 
     var week = day.weekNum();
+
+    //shift
     resident.shifts[week] += 1;
+
+    //weekend
+    if (day.isSatSun() || (day.name() == 'Fri' && position.includes('night'))) resident.weekends[week] += 1;
+    //night
+    if (position.includes('night')) resident.nights[week] += 1;
+    //consult
+    if (position.includes('consults')) resident.consults[week] += 1;
+    //tuesdays
+    if (day.isTue()) resident.tuesdays[week] += 1;
 
     return resident;
 }
-function assignWeekend(resident, day) {
-
-    if (empty(resident)) return null;
-
-    //record weekend
-    var week = day.weekNum();
-    resident.weekends[week] += 1;
-
-    return assignShift(resident, day);
-}
-function assignNight(resident, day) {
-
-    if (empty(resident)) return null;
-
-    var week = day.weekNum();
-    resident.nights[week] += 1;
-
-    return assignWeekend(resident, day);
-}
-function assignConsult(resident, day) {
-
-    if (empty(resident)) return null;
-
-    //record consult shift
-    var week = day.weekNum();
-    resident.consults[week] += 1;
-
-    //if weekend, record weekend shift
-    if (day.isSatSun()) resident.weekends[week] += 1;
-
-    //recursively record shift
-    return assignShift(resident, day);
-}
-function unassign(resident, day, argPosition) {
+function unassign(resident, position, day) {
 
     var week = day.weekNum();
 
+    //shift
     resident.shifts[week] -= 1;
 
-    if (argPosition.includes('night')) resident.nights[week] -= 1;
-    if (argPosition.includes('consult')) resident.consults[week] -= 1;
-    if (day.isSatSun()) resident.weekends[week] -= 1;
+    //nights
+    if (position.includes('night')) resident.nights[week] -= 1;
+    //consults
+    if (position.includes('consults')) resident.consults[week] -= 1;
+    //weekend
+    if (day.isSatSun() || (day.name() == 'Fri' && position.includes('night'))) resident.weekends[week] -= 1;
+    //tuesdays
+    if (day.isTue()) resident.tuesdays[week] -= 1;
 }
 
 function sortByPGYHigh(residents) {
@@ -1064,6 +1093,10 @@ function sortByNights(residents) {
 function sortByConsults(residents) {
 
     residents.sort(byConsults);
+}
+function sortByTuesdays(residents) {
+
+    residents.sort(byTuesdays);
 }
 function sortByShifts(residents) {
 
@@ -1093,8 +1126,12 @@ function sortByGoldenWeekend(residents, day) {
 
     residents.sort(function (low, high) {
 
-        
+
     });
+}
+function sortByPGYHighAlphabetical(residents) {
+
+    residents.sort(byPGYHighAlphabetical);
 }
 
 function byPGYHigh(low, high) {
@@ -1194,6 +1231,26 @@ function byConsults(low, high) {
     num = byShifts(low, high);
     return num;
 }
+function byTuesdays(low, high) {
+
+    var num = 0;
+
+    //sort by tuesdays low-high
+    num = (low._tuesdays() / low._availability()) - (high._tuesdays() / high._availability());
+    if (num != 0) return num;
+
+    //sort PGY high to low (seniority to have work on conference days)
+    num = high.PGY - low.PGY;
+    if (num != 0) return num;
+
+    //sort low-high weighted average shifts
+    num = (low._shifts() / low._availability()) - (high._shifts() / high._availability());
+    if (num != 0) return num;
+
+    //if equal return random
+    num = rand();
+    return num;
+}
 function byGoldenWeekend(low, high) {
 
     var num = 0;
@@ -1203,6 +1260,18 @@ function byGoldenWeekend(low, high) {
     if (num != 0) return num;
 
     //allow return of 0 at this time
+    return num;
+}
+function byPGYHighAlphabetical(low, high) {
+
+    var num = 0;
+
+    //sort PGY high to low
+    num = high.PGY - low.PGY;
+    if (num != 0) return num;
+
+    //if equal return alphabetically
+    num = low.name.localeCompare(high.name);
     return num;
 }
 
@@ -1259,8 +1328,13 @@ function chooseWeekend(argTeam, day) {
 }
 function chooseConsult(argTeam, day) {
 
-    //sort by weekends on weekends, otherwise sort by consults
+    //sort by weekends on weekends
     if (day.isSatSun()) sortByWeekends(argTeam);
+
+    //sort by tuesdays on tuesdays
+    else if (day.isTue()) sortByTuesdays(argTeam);
+
+    //otherwise sort by consults
     else sortByConsults(argTeam);
 
     for (let resident of argTeam) {
@@ -1272,7 +1346,8 @@ function chooseConsult(argTeam, day) {
 }
 function chooseSr(argTeam, day) {
 
-    sortByShifts(argTeam);
+    if (day.isTue()) sortByTuesdays(argTeam);
+    else sortByShifts(argTeam);
 
     for (let resident of argTeam) {
         if (resident.canSr() && resident.isAvailableDay(day)) return resident;
@@ -1282,7 +1357,8 @@ function chooseSr(argTeam, day) {
 }
 function chooseJr(argTeam, day) {
 
-    sortByShifts(argTeam);
+    if (day.isTue()) sortByTuesdays(argTeam);
+    else sortByShifts(argTeam);
 
     for (let resident of argTeam) {
         if (resident.canJr() && resident.isAvailableDay(day)) return resident;
@@ -1401,8 +1477,6 @@ function makeAssignmentCell(argWeek, day) {
     var cell;
     var wrapper;
     var positionsColumn;
-    var wrapperTeams;   //teams (blue and red)
-    var wrapperSpecial; //consults & nights
     var namesColumn;
     var textColor;
     var renamePosition;
@@ -1420,47 +1494,60 @@ function makeAssignmentCell(argWeek, day) {
 
     //scaffold positions column
     positionsColumn = document.createElement('div');
-    //positionsColumn.setAttribute('id', 'day' + day + '-positions');
     positionsColumn.setAttribute('class', 'position-column');
-    wrapperTeams = document.createElement('div');
-    wrapperTeams.setAttribute('class', 'wrapper-teams');
-    //wrapperTeams.setAttribute('id', 'day' + day + '-wrapper-teams')
-    wrapperSpecial = document.createElement('div');
-    wrapperSpecial.setAttribute('class', 'wrapper-special');
-    //wrapperSpecial.setAttribute('id', 'day' + day + '-wrapper-special');
-    positionsColumn.append(wrapperTeams, wrapperSpecial);
+    positionsColumn.innerHTML = '';
 
     //scaffold names column
     namesColumn = document.createElement('div');
     namesColumn.setAttribute('id', 'day' + day + '-names');
     namesColumn.setAttribute('class', 'name-column');
-
-    wrapperTeams.innerHTML = '';
-    wrapperSpecial.innerHTML = '';
     namesColumn.innerHTML = '';
 
+
+
+
+
+
+
+
+
+
     //output each position
+    var priorPosition = "";
+
+    //output position regardless of if it is filled
+    //output name only if there
+    //check if there are any more in that same position
+    //output whitespace rather than position if it is a repeat
+
     for (let position of positions) {
-        for (let i = 0; i < month[day][position].length; i++) {
 
+        let i = 0;
+
+        do {
+
+            //position text color
+            if (position.includes('blue')) textColor = 'blue-text';
+            else if (position.includes('red')) textColor = 'red-text';
+            else if (position.includes('consults')) textColor = 'purple-text';
+            else textColor = 'black-text';
+            //position content
+            if (position == priorPosition) renamePosition = '&nbsp;';
+            else if (position.includes('Chief')) renamePosition = 'Chief';
+            else if (position.includes('Staff')) renamePosition = 'Staff';
+            else if (position.includes('consults')) renamePosition = 'Consults';
+            else renamePosition = position;
+            //create position element
+            positionHTML = document.createElement('div');
+            positionHTML.setAttribute('class', textColor);
+            positionHTML.innerHTML = renamePosition;
+
+            //name element
             let resident = month[day][position][i];
-
+            nameHTML = document.createElement('div');
+            //for filled name
             if (!empty(resident)) {
 
-                if (position.includes('blue')) textColor = 'blue-text';
-                else if (position.includes('red')) textColor = 'red-text';
-                else if (position.includes('consult')) textColor = 'purple-text';
-                else textColor = 'black-text';
-
-                if (position.includes('Chief')) renamePosition = 'Chief';
-                else if (position.includes('Staff')) renamePosition = '&nbsp;';
-                else renamePosition = position;
-
-                positionHTML = document.createElement('div');
-                positionHTML.setAttribute('class', textColor);
-                positionHTML.innerHTML = renamePosition;
-
-                nameHTML = document.createElement('div');
                 nameHTML.setAttribute('class', textColor + ' resident ' + resident.name);
                 nameHTML.addEventListener('mouseover', () => mouseOver(resident.name));
                 nameHTML.addEventListener('mouseout', () => mouseOut(resident.name));
@@ -1470,20 +1557,25 @@ function makeAssignmentCell(argWeek, day) {
 
                 tooltipHTML = makeToolTip(resident, argWeek);
                 nameHTML.append(tooltipHTML);
-
-                if (position.includes('blue') || position.includes('red')) {
-                    wrapperTeams.append(positionHTML);
-                }
-                else {
-                    wrapperSpecial.append(positionHTML);
-                }
-
-                namesColumn.append(nameHTML);
             }
-        }
+            //for empty name
+            else {
+                nameHTML.innerHTML = '&nbsp;';
+            }
+
+            //add to column
+            positionsColumn.append(positionHTML);
+            namesColumn.append(nameHTML);
+
+            //iterate
+            i++;
+            priorPosition = position;
+
+        } while (i < month[day][position].length);
+
     }
 
-    //add children scaffolds to cell
+    //add children to cell
     wrapper.append(positionsColumn, namesColumn);
     cell.append(wrapper);
 
@@ -1500,6 +1592,7 @@ function makeToolTip(resident, argWeek) {
     tooltip.innerHTML += 'total consults: ' + resident._consults() + '<br>';
     tooltip.innerHTML += 'total weekends: ' + resident._weekends() + '<br>';
     tooltip.innerHTML += 'total nights: ' + resident._nights() + '<br>';
+    tooltip.innerHTML += 'total tuesdays: ' + resident._tuesdays() + '<br>';
 
     return tooltip;
 }
@@ -1508,7 +1601,6 @@ function makeFloatPoolRow(argWeek) {
     var row;
     var cell;
     var floatPool = {};
-    var teams = ['blue', 'red', 'edu', '---'];
     var residentHTML;
     var tooltipHTML;
     var container;
@@ -1516,7 +1608,6 @@ function makeFloatPoolRow(argWeek) {
     var option;
     var customMenu;
     var menuTitle;
-
 
     row = document.createElement('tr');
     for (let i = (argWeek * 7); i < (argWeek * 7) + 7; i++) {
@@ -1528,8 +1619,8 @@ function makeFloatPoolRow(argWeek) {
         cell.innerHTML += 'Available to Work<br>';
 
         //clear float pool lists
-        for (let team of teams) {
-            floatPool[team] = [];
+        for (let teamName of teamNames) {
+            floatPool[teamName] = [];
         }
 
         //find all available residents and separate based on team
@@ -1539,7 +1630,7 @@ function makeFloatPoolRow(argWeek) {
                 floatPool[resident.team].push(resident);
             }
             //or if resident available for any empty night shift
-            else if (day.isFriSat() && resident.isAvailableNight(day)) {
+            else if (resident.isAvailableNight(day)) {
                 if (day.nightSr.length == 0 && resident.canNightSr()) {
                     floatPool[resident.team].push(resident);
                 }
@@ -1550,12 +1641,12 @@ function makeFloatPoolRow(argWeek) {
         }
 
         //sort float pools by shifts this week
-        for (let team of teams) {
-            sortByShiftsThisWeek(floatPool[team], day);
+        for (let teamName of teamNames) {
+            sortByShiftsThisWeek(floatPool[teamName], day);
         }
 
         //output by team - add color, click, mouseover, and rightClick functions
-        for (let team of teams) {
+        for (let team of teamNames) {
             for (let resident of floatPool[team]) {
 
                 //text
@@ -1588,7 +1679,7 @@ function makeFloatPoolRow(argWeek) {
 
                     menu.append(option);
                 }
-                
+
                 container.append(menu);
 
                 //events
@@ -1610,7 +1701,10 @@ function makeFloatPoolRow(argWeek) {
 
                 // Hide the custom menu on any click outside the menu
                 document.addEventListener('click', function () {
-                    document.getElementById('custom-menu-' + resident.name + day.num).style.display = 'none';
+                    let rightClickMenu = document.getElementById('custom-menu-' + resident.name + day.num);
+                    if (rightClickMenu != null) {
+                        rightClickMenu.style.display = 'none';
+                    }
                 });
 
                 //add tooltip and append
@@ -1643,23 +1737,24 @@ function mouseOut(argName) {
 }
 function addResident(resident, day, residentPosition = '') {
 
-    var residentPosition;
-
-    //
-
-
     //choose what position to place resident
     if (residentPosition == '') residentPosition = choosePosition(resident, day);
 
+
+    if (residentPosition == '') {
+        alert("residentPosition == ''");
+        return;
+    }
+
     //add to that position
     //assign night
-    if (residentPosition.includes('night')) day[residentPosition].push(assignNight(resident, day));
-    //assign consult - will catch consult/weekends
-    else if (residentPosition.includes('consult')) day[residentPosition].push(assignConsult(resident, day));
+    if (residentPosition.includes('night')) day[residentPosition].push(assign(resident, residentPosition, day));
+    //assign consults - will catch consults/weekends
+    else if (residentPosition.includes('consults')) day[residentPosition].push(assign(resident, residentPosition, day));
     //assign weekend
-    else if (day.isSatSun()) day[residentPosition].push(assignWeekend(resident, day));
+    else if (day.isSatSun()) day[residentPosition].push(assign(resident, residentPosition, day));
     //assign shift
-    else day[residentPosition].push(assignShift(resident, day));
+    else day[residentPosition].push(assign(resident, residentPosition, day));
 
     //re-sort by PGY High
     sortByPGYHigh(day[residentPosition]);
@@ -1707,10 +1802,10 @@ function choosePosition(resident, day) {
         }
     }
 
-    //if resident can consult, check for consult vacancy
+    //if resident can consults, check for consults vacancy
     if (resident.canConsult()) {
-        if (day.consult.length == 0) {
-            return 'consult';
+        if (day.consults.length == 0) {
+            return 'consults';
         }
     }
 
@@ -1721,6 +1816,8 @@ function choosePosition(resident, day) {
         if (day.blueStaff.length <= day.redStaff.length) return 'blueStaff';
         else residentPosition = 'redStaff';
     }
+
+    return '';
 }
 function removeResident(resident, day, position) {
 
@@ -1737,7 +1834,7 @@ function removeResident(resident, day, position) {
     day[position].splice(residentIndex, 1);
 
     //remove shifts from resident Object
-    unassign(resident, day, position);
+    unassign(resident, position, day);
 
     //re-output schedule/stats
     printFullSchedule();
@@ -1773,20 +1870,23 @@ function getStats() {
     stats = [];
 
     //scaffold weekly stats at index 0-3
+    //store 0-10 for possible weekly shifts
     for (let week = 0; week < 4; week++) {
         stats[week] = {};
         for (let shiftType of shiftTypes) {
             stats[week][shiftType] = [];
-            for (count = 0; count < 8; count++) {
+            for (count = 0; count <= 10; count++) {
                 stats[week][shiftType][count] = [];
             }
         }
     }
+
     //scaffold overall stats at index 4
+    //store 0-40 for possible monthly shifts
     stats[4] = {};
     for (let shiftType of shiftTypes) {
         stats[4][shiftType] = [];
-        for (count = 0; count < 31; count++) {
+        for (count = 0; count <= 40; count++) {
             stats[4][shiftType][count] = [];
         }
     }
@@ -1824,6 +1924,10 @@ function getStats() {
             //nights
             count = resident._nights();
             stats[4]['nights'][count].push(resident);
+
+            //tuesdays
+            count = resident._tuesdays();
+            stats[4]['tuesdays'][count].push(resident);
         }
     }
 }
@@ -1869,14 +1973,14 @@ function outputStats() {
                 }
             }
             //find last non-blank
-            for (let count = stats[4][shiftType].length - 1; count >=0 ; count--) {
+            for (let count = stats[4][shiftType].length - 1; count >= 0; count--) {
                 if (stats[4][shiftType][count].length != 0) {
                     last = count;
                     break;
                 }
             }
             //output
-            for (let count = first; count < last+1; count++) {
+            for (let count = first; count < last + 1; count++) {
                 cell.innerHTML += count + ': ';
                 for (let i = 0; i < stats[4][shiftType][count].length; i++) {
                     let resident = stats[4][shiftType][count][i];
@@ -1998,10 +2102,10 @@ function toggleSidebar() {
 }
 function openSidebar() {
 
-    var left = 250;
+    var left = 220;
 
     document.getElementById("resident-sidebar").style.left = '0px';
-    document.getElementById("main").style.marginLeft = (left + 10) + 'px';
+    document.getElementById("main").style.marginLeft = (left + 5) + 'px';
 
     document.getElementById('toggleSidebar').innerHTML = '&#9664;';
 }
@@ -2070,7 +2174,7 @@ function importData(files) {
 
         // Perform additional actions with the parsed JSON data
         var importedResidents = jsonData[0];
-        sortByPGYHigh(importedResidents);
+        sortByPGYHighAlphabetical(importedResidents);
         var importedMonth = jsonData[1];
         var importedHalfway = jsonData[2];
 
@@ -2082,7 +2186,7 @@ function importData(files) {
         document.getElementById('all-residents').innerHTML = '';
         clearSchedule();
 
-        
+
 
         //convert resident json to Resident class (to access methods)
         for (let i = 0; i < importedResidents.length; i++) {
@@ -2099,7 +2203,7 @@ function importData(files) {
         for (let resident of residents) {
             changeDropdown(resident, resident.team);
         }
-        
+
         //make copy of shifts array
         for (let i = 0; i < importedResidents.length; i++) {
             for (let shiftType of shiftTypes) {
@@ -2132,12 +2236,58 @@ function importData(files) {
         //convert halfway JSON
         halfway = importedHalfway;
         loadHalfwayRadio();
-        
-        
+
+
     };
 
     // Read the contents of the selected file as text
     reader.readAsText(selectedFile);
 
-    
+
+}
+
+function recount() {
+
+    var week;
+
+    //zero out resident stats
+    for (let resident of residents) {
+        for (let i = 0; i < 4; i++) {
+            week = i;
+            for (let shift of shiftTypes) {
+                resident[shift][week] = 0;
+            }
+        }
+    }
+
+    //re-count
+    for (let day of month) {
+        week = day.weekNum();
+        for (let position of positions) {
+            for (let resident of day[position]) {
+
+                //normal shifts
+                resident.shifts[week] += 1;
+
+                //consults
+                if (position.includes('consults')) resident.consults[week] += 1;
+
+                //nights
+                if (position.includes('night')) resident.nights[week] += 1;
+
+                //tuesdays
+                if (day.isTue()) resident.tuesdays[week] += 1;
+
+                //weekends (Fri night, Sat day/night, Sun day/night)
+                if (day.isSatSun() || (day.name() == 'Fri' && position.includes('night'))) {
+                    resident.weekends[week] += 1;
+                }
+
+            }
+        }
+
+    }
+
+    printFullSchedule();
+    updateStats();
 }
